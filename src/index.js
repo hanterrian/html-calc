@@ -1,6 +1,6 @@
 import _ from 'lodash';
 
-import '../css/main.scss';
+import './css/main.scss';
 
 import jQuery from 'jquery';
 import popper from 'popper.js';
