@@ -1,58 +1,123 @@
 const path = require('path');
+const glob = require('glob');
+const argv = require('yargs').argv;
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const VueLoaderPlugin = require('vue-loader/lib/plugin')
 
-module.exports = {
-    entry: './src/index.js',
+const isDevelopment = argv.mode === 'development';
+const isProduction = !isDevelopment;
+const distPath = path.join(__dirname, '/dist');
+
+const config = {
+    entry: {
+        main: './src/js/index.js'
+    },
     output: {
-        filename: 'main.js',
-        path: path.resolve(__dirname, 'dist')
+        filename: 'bundle.js',
+        path: distPath
     },
     module: {
         rules: [
             {
-                test: /\.css$/,
-                use: [
-                    'style-loader',
-                    'css-loader'
-                ]
+                test: /\.html$/,
+                use: 'html-loader'
+            },
+            {
+                test: /\.js$/,
+                exclude: /node_modules/,
+                use: [{
+                    loader: 'babel-loader'
+                }]
             },
             {
                 test: /\.scss$/,
+                exclude: /node_modules/,
                 use: [
+                    isDevelopment ? 'style-loader' : MiniCssExtractPlugin.loader,
+                    'css-loader',
                     {
-                        loader: "style-loader" // creates style nodes from JS strings
+                        loader: 'postcss-loader',
+                        options: {
+                            plugins: [
+                                isProduction ? require('cssnano') : () => {
+                                },
+                                require('autoprefixer')({
+                                    browsers: ['last 2 versions']
+                                })
+                            ]
+                        }
                     },
-                    {
-                        loader: "css-loader" // translates CSS into CommonJS
-                    },
-                    {
-                        loader: "sass-loader" // compiles Sass to CSS
+                    'sass-loader'
+                ]
+            },
+            {
+                test: /images[\\\/].+\.(gif|png|jpe?g|svg)$/i,
+                use: [{
+                    loader: 'file-loader',
+                    options: {
+                        name: 'images/[name][hash].[ext]'
                     }
-                ]
+                }, {
+                    loader: 'image-webpack-loader',
+                    options: {
+                        mozjpeg: {
+                            progressive: true,
+                            quality: 70
+                        }
+                    }
+                },
+                ],
             },
             {
-                test: /\.(png|svg|jpg|gif)$/,
-                use: [
-                    'file-loader'
-                ]
+                test: /fonts[\\\/].+\.(eot|svg|ttf|woff|woff2)$/,
+                use: {
+                    loader: 'file-loader',
+                    options: {
+                        name: 'fonts/[name][hash].[ext]'
+                    }
+                },
             },
             {
-                test: /\.(woff|woff2|eot|ttf|otf)$/,
-                use: [
-                    'file-loader'
-                ]
-            },
-            {
-                test: /\.(csv|tsv)$/,
-                use: [
-                    'csv-loader'
-                ]
-            },
-            {
-                test: /\.xml$/,
-                use: [
-                    'xml-loader'
-                ]
+                test: /\.vue$/,
+                loader: 'vue-loader'
             }
         ]
+    },
+    plugins: [
+        new MiniCssExtractPlugin({
+            filename: '[name].css',
+            chunkFilename: '[id].css'
+        }),
+        ...glob.sync('./src/*.html')
+            .map(htmlFile => {
+                return new HtmlWebpackPlugin({
+                    filename: path.basename(htmlFile),
+                    template: htmlFile
+                });
+            }),
+        new VueLoaderPlugin()
+    ],
+    optimization: isProduction ? {
+        minimizer: [
+            new UglifyJsPlugin({
+                sourceMap: true,
+                uglifyOptions: {
+                    compress: {
+                        inline: false,
+                        drop_console: true
+                    },
+                },
+            }),
+        ],
+    } : {},
+    devServer: {
+        contentBase: distPath,
+        port: 9000,
+        compress: true,
+        open: true
     }
 };
+
+module.exports = config;
